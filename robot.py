@@ -5,6 +5,7 @@ import config
 from PIL import Image
 from config import fov, aspect, near_plane, far_plane
 
+
 class Robot:
 
     def __init__(self, args):
@@ -42,8 +43,6 @@ class Robot:
                 p.resetJointState(self.id, j, self.joint_start_positions[i])
                 i += 1
                 self.joint_indices.append(j)
-
-
 
     def move(self, env, ee_target_position, ee_target_orientation_e, gripper_open, is_trajectory):
 
@@ -146,10 +145,7 @@ class Robot:
                 if time_step > 99:
                     break
 
-
-
     def get_camera_image(self, camera, env, save_camera_image, rgb_image_path, depth_image_path):
-
         if camera == "wrist":
             camera_position = list(p.getLinkState(self.id, self.ee_index, computeForwardKinematics=True)[0])
             if self.robot == "sawyer":
@@ -159,35 +155,59 @@ class Robot:
             camera_position = config.head_camera_position
             camera_orientation_q = p.getQuaternionFromEuler(config.head_camera_orientation_e)
 
+        # Projection
         projection_matrix = p.computeProjectionMatrixFOV(fov, aspect, near_plane, far_plane)
-        rotation_matrix = np.array(p.getMatrixFromQuaternion(camera_orientation_q)).reshape(3, 3)
 
+        # Orientation → camera vectors
+        rotation_matrix = np.array(p.getMatrixFromQuaternion(camera_orientation_q)).reshape(3, 3)
         if camera == "wrist":
-            init_camera_vector = [0, 0, 1]
-            init_up_vector = [1, 0, 0]
-        elif camera == "head":
-            init_camera_vector = [0, 0, 1]
-            init_up_vector = [-1, 0, 0]
+            init_camera_vector = np.array([0, 0, 1], dtype=float)
+            init_up_vector = np.array([1, 0, 0], dtype=float)
+        else:  # "head"
+            init_camera_vector = np.array([0, 0, 1], dtype=float)
+            init_up_vector = np.array([-1, 0, 0], dtype=float)
 
         camera_vector = rotation_matrix.dot(init_camera_vector)
         up_vector = rotation_matrix.dot(init_up_vector)
-        view_matrix = p.computeViewMatrix(camera_position, camera_position + camera_vector, up_vector)
 
-        image = p.getCameraImage(config.image_width, config.image_height, viewMatrix=view_matrix, projectionMatrix=projection_matrix, renderer=p.ER_BULLET_HARDWARE_OPENGL)
+        cam_pos = np.array(camera_position, dtype=float)
+        target = (cam_pos + camera_vector).tolist()
+        up_vec = up_vector.tolist()
 
-        rgb_buffer = image[2]
-        depth_buffer = image[3]
+        view_matrix = p.computeViewMatrix(cam_pos.tolist(), target, up_vec)
+
+        # ----- Get image from PyBullet -----
+        width, height, rgba, depth, _ = p.getCameraImage(
+            config.image_width,
+            config.image_height,
+            viewMatrix=view_matrix,
+            projectionMatrix=projection_matrix,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL
+        )
+
+        # Ensure numpy arrays with correct shapes/dtypes
+        rgba = np.asarray(rgba)  # sometimes list/tuple
+        if rgba.ndim == 1:  # flat buffer: reshape
+            rgba = rgba.reshape(height, width, 4)
+        elif rgba.shape[-1] != 4:
+            rgba = rgba.reshape(height, width, 4)
+        rgb = rgba[:, :, :3].astype(np.uint8)
+
+        depth = np.asarray(depth)
+        if depth.ndim == 1:
+            depth = depth.reshape(height, width)
 
         if save_camera_image:
-            rgb_image = Image.fromarray(rgb_buffer)
-            rgb_image.save(rgb_image_path)
+            # Save RGB
+            Image.fromarray(rgb).save(rgb_image_path)
 
+            # Convert normalized depth to metric (same formula you used), clamp, and save as 8-bit
             n = config.near_plane
             f = config.far_plane
-            depth_array = 2 * n * f / (f + n - (2 * depth_buffer - 1.0) * (f - n))
-
-            depth_array = np.clip(depth_array, 0, 1)
-            depth_image = Image.fromarray(depth_array * 255)
-            depth_image.convert("L").save(depth_image_path)
+            depth_metric = (2.0 * n * f) / (f + n - (2.0 * depth - 1.0) * (f - n))
+            depth_metric = np.clip(depth_metric, 0.0, 1.0)
+            depth_u8 = (depth_metric * 255.0).astype(np.uint8)
+            Image.fromarray(depth_u8, mode="L").save(depth_image_path)
 
         return camera_position, camera_orientation_q
+
