@@ -33,7 +33,7 @@ if __name__ == "__main__":
         # 🔐 Set up OpenAI client
         openai.api_key = os.getenv("OPENAI_API_KEY")
         client = openai.OpenAI(
-            api_key="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" \
+            api_key="" \
             )
 
         # ⚙️ Parse CLI arguments
