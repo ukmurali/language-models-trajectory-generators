@@ -32,9 +32,7 @@ if __name__ == "__main__":
     try:
         # 🔐 Set up OpenAI client
         openai.api_key = os.getenv("OPENAI_API_KEY")
-        client = openai.OpenAI(
-            api_key="" \
-            )
+        client = openai.OpenAI(api_key=openai.api_key)
 
         # ⚙️ Parse CLI arguments
         parser = argparse.ArgumentParser(description="Main Program.")
