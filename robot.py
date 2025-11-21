@@ -1,3 +1,5 @@
+import time
+
 import pybullet as p
 import numpy as np
 import math
@@ -43,6 +45,41 @@ class Robot:
                 p.resetJointState(self.id, j, self.joint_start_positions[i])
                 i += 1
                 self.joint_indices.append(j)
+
+    def close_gripper(self, env):
+        """
+        Close the gripper actuator, then attach the can if contact exists.
+        """
+        # Your existing code or command to close the gripper actuator
+        # For example, move gripper motor to closed position with force
+
+        # Example for Sawyer (adjust for your robot specifics):
+        target_pos = config.gripper_goal_position_closed_sawyer
+        max_force = config.gripper_movement_force_sawyer
+        p.setJointMotorControl2(self.id, config.robotiq_motor_joint, p.POSITION_CONTROL,
+                                targetPosition=target_pos, force=max_force)
+
+        # Step simulation or wait briefly to allow motion
+        time.sleep(0.1)
+
+        # Attach the can to the gripper via physics constraint if contact detected
+        attached = env.attach_can_to_gripper(self)
+        return attached
+
+    def open_gripper(self, env):
+        """
+        Open the gripper actuator, then release the can if attached.
+        """
+        # Your existing code or command to open the gripper actuator
+        target_pos = config.gripper_goal_position_open_sawyer
+        max_force = config.gripper_movement_force_sawyer
+        p.setJointMotorControl2(self.id, config.robotiq_motor_joint, p.POSITION_CONTROL,
+                                targetPosition=target_pos, force=max_force)
+
+        time.sleep(0.1)
+
+        # Remove any existing grasp constraint releasing the can
+        env.release_can_from_gripper()
 
     def move(self, env, ee_target_position, ee_target_orientation_e, gripper_open, is_trajectory):
 

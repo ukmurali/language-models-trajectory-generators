@@ -38,6 +38,11 @@ ee_start_orientation_e = [0.0, math.pi, -math.pi / 2]
 object_start_position = [random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8), 0.1]
 object_start_orientation_e = [0.0, 0.0, random.uniform(-math.pi, math.pi)]
 
+# Object (CAN) fixed position
+# object_start_position = [0.0, 0.6, 0.1]   # X, Y, Z fixed location
+# object_start_orientation_e = [0.0, 0.0, math.pi/2]
+
+
 global_scaling = 0.08
 
 # Camera
